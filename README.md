@@ -46,3 +46,5 @@ Information on the software environments and package dependencies is provided in
 
 2. Hickey, G. L., Philipson, P., Jorgensen, A., & Kolamunnage-Dona, R. (2018). *joineRML: A joint model and software package for time-to-event and multivariate longitudinal outcomes.* BMC Medical Research Methodology, 18, 50. https://doi.org/10.1186/s12874-018-0502-1
 
+3. OpenAI. (2026). *ChatGPT (GPT-5.6 Sol)* [Large language model]. Used for code suggestions, debugging assistance, and implementation adjustments. URL: https://chatgpt.com/.
+
