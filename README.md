@@ -1,5 +1,5 @@
 
-# Simulation Study to Evaluate the TransformerLSR Approach for Joint Modeling
+# Simulation study to tvaluate the TransformerLSR approach for joint modeling
 
 This repository contains the code used for the simulation study conducted as part of my master's thesis at the Technical University of Darmstadt.
 
