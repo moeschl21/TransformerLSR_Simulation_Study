@@ -30,7 +30,7 @@ The original implementation was adapted and extended for the purposes of this si
 
 The joineRML analyses were implemented in R using the joineRML package developed by Hickey et al. (2018).
 
-OpenAI's ChatGPT was used for assistance with code development, debugging, and implementation adjustments.
+OpenAI's ChatGPT (GPT-5.6 Sol) was used to assist with code suggestions, debugging, and implementation adjustments.
 
 
 ## Software Environment
