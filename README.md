@@ -30,6 +30,14 @@ The original implementation was adapted and extended for the purposes of this si
 
 The joineRML analyses were implemented in R using the joineRML package developed by Hickey et al. (2018).
 
+
+## Software Environment
+
+TransformerLSR was implemented in Python using PyTorch, while the joineRML analyses were conducted in R.
+
+Information on the software environments and package dependencies is provided in the `environment/` directory.
+
+
 ## References
 
 1. Zhang, Z., Zhao, Y., & Xu, Y. (2025). *TransformerLSR: Attentive Joint Model of Longitudinal Data, Survival, and Recurrent Events with Concurrent Latent Structure.*
