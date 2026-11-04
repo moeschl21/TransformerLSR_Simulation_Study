@@ -1,5 +1,5 @@
 
-# Simulation study to tvaluate the TransformerLSR approach for joint modeling
+# Simulation study to evaluate the TransformerLSR approach for joint modeling
 
 This repository contains the code used for the simulation study conducted as part of my master's thesis at the Technical University of Darmstadt.
 
@@ -29,6 +29,8 @@ The TransformerLSR implementation is based on the original code developed by Zha
 The original implementation was adapted and extended for the purposes of this simulation study. Modifications include adjustments to the simulation framework, model training and evaluation procedures, as well as bug fixes and other implementation improvements.
 
 The joineRML analyses were implemented in R using the joineRML package developed by Hickey et al. (2018).
+
+OpenAI's ChatGPT was used for assistance with code development, debugging, and implementation adjustments.
 
 
 ## Software Environment
