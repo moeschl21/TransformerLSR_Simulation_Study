@@ -4,7 +4,6 @@ library(splines)
 
 
 # Load data
-
 data_dir <- "D:/AlterPC/Masterarbeit/Dateien/13_master_data_joinerml/data_joinerml_train"
 
 file <- file.path(
@@ -16,7 +15,6 @@ dat <- read.csv(file)
 
 
 # Separate datasets for the three longitudinal outcomes
-
 dat_Y1 <- dat %>%
   filter(!is.na(Y1))
 
@@ -28,7 +26,6 @@ dat_Y3 <- dat %>%
 
 
 # ORIGINAL MODELS
-
 fit_Y1_original <- lme(
   Y1 ~ ns(obstime, df = 3) + X1 + X2 + X3,
   random = ~ obstime | id,
@@ -49,7 +46,6 @@ fit_Y3_original <- lme(
 
 
 # Box-Cox transformation
-
 boxcox_transform <- function(y, lambda) {
   
   if (abs(lambda) < 1e-8) {
@@ -61,7 +57,6 @@ boxcox_transform <- function(y, lambda) {
 
 
 # Box-Cox requires positive values
-
 if (any(dat_Y1$Y1 <= 0)) {
   stop("Y1 contains values <= 0.")
 }
@@ -76,12 +71,10 @@ if (any(dat_Y3$Y3 <= 0)) {
 
 
 # Lambda grid
-
 lambda_grid <- seq(-2, 2, by = 0.05)
 
 
 # Determine lambda for Y1
-
 logLik_Y1 <- rep(NA, length(lambda_grid))
 
 for (i in seq_along(lambda_grid)) {
@@ -111,7 +104,6 @@ lambda_Y1 <- lambda_grid[
 
 
 # Determine lambda for Y2
-
 logLik_Y2 <- rep(NA, length(lambda_grid))
 
 for (i in seq_along(lambda_grid)) {
@@ -141,7 +133,6 @@ lambda_Y2 <- lambda_grid[
 
 
 # Determine lambda for Y3
-
 logLik_Y3 <- rep(NA, length(lambda_grid))
 
 for (i in seq_along(lambda_grid)) {
@@ -171,7 +162,6 @@ lambda_Y3 <- lambda_grid[
 
 
 # Apply Box-Cox transformations
-
 dat_Y1$Y1_BC <- boxcox_transform(
   dat_Y1$Y1,
   lambda_Y1
@@ -189,7 +179,6 @@ dat_Y3$Y3_BC <- boxcox_transform(
 
 
 # BOX-COX MODELS
-
 fit_Y1_BC <- lme(
   Y1_BC ~ ns(obstime, df = 3) + X1 + X2 + X3,
   random = ~ obstime | id,
@@ -210,7 +199,6 @@ fit_Y3_BC <- lme(
 
 
 # Residuals
-
 res_Y1_original <- residuals(
   fit_Y1_original,
   type = "normalized"
@@ -244,7 +232,6 @@ res_Y3_BC <- residuals(
 
 
 # Fitted values
-
 fitted_Y1_original <- fitted(fit_Y1_original)
 fitted_Y2_original <- fitted(fit_Y2_original)
 fitted_Y3_original <- fitted(fit_Y3_original)
@@ -255,7 +242,6 @@ fitted_Y3_BC <- fitted(fit_Y3_BC)
 
 
 # FIGURE 1: ORIGINAL SCALE
-
 png(
   filename = file.path(data_dir, "diagnostics_original_seed_1.png"),
   width = 2400,
@@ -270,7 +256,6 @@ par(
 
 
 # Y1: Q-Q Plot
-
 qqnorm(
   res_Y1_original,
   main = "Y1: Q-Q Plot",
@@ -282,7 +267,6 @@ qqline(res_Y1_original)
 
 
 # Y1: Residuals vs Fitted
-
 plot(
   fitted_Y1_original,
   res_Y1_original,
@@ -295,7 +279,6 @@ abline(h = 0, lty = 2)
 
 
 # Y2: Q-Q Plot
-
 qqnorm(
   res_Y2_original,
   main = "Y2: Q-Q Plot",
@@ -307,7 +290,6 @@ qqline(res_Y2_original)
 
 
 # Y2: Residuals vs Fitted
-
 plot(
   fitted_Y2_original,
   res_Y2_original,
@@ -320,7 +302,6 @@ abline(h = 0, lty = 2)
 
 
 # Y3: Q-Q Plot
-
 qqnorm(
   res_Y3_original,
   main = "Y3: Q-Q Plot",
@@ -332,7 +313,6 @@ qqline(res_Y3_original)
 
 
 # Y3: Residuals vs Fitted
-
 plot(
   fitted_Y3_original,
   res_Y3_original,
@@ -348,7 +328,6 @@ dev.off()
 
 
 # FIGURE 2: BOX-COX TRANSFORMED SCALE
-
 png(
   filename = file.path(data_dir, "diagnostics_boxcox_seed_1.png"),
   width = 2400,
@@ -363,7 +342,6 @@ par(
 
 
 # Y1: Q-Q Plot
-
 qqnorm(
   res_Y1_BC,
   main = paste0(
@@ -379,7 +357,6 @@ qqline(res_Y1_BC)
 
 
 # Y1: Residuals vs Fitted
-
 plot(
   fitted_Y1_BC,
   res_Y1_BC,
@@ -392,7 +369,6 @@ abline(h = 0, lty = 2)
 
 
 # Y2: Q-Q Plot
-
 qqnorm(
   res_Y2_BC,
   main = paste0(
@@ -408,7 +384,6 @@ qqline(res_Y2_BC)
 
 
 # Y2: Residuals vs Fitted
-
 plot(
   fitted_Y2_BC,
   res_Y2_BC,
@@ -421,7 +396,6 @@ abline(h = 0, lty = 2)
 
 
 # Y3: Q-Q Plot
-
 qqnorm(
   res_Y3_BC,
   main = paste0(
@@ -437,7 +411,6 @@ qqline(res_Y3_BC)
 
 
 # Y3: Residuals vs Fitted
-
 plot(
   fitted_Y3_BC,
   res_Y3_BC,
