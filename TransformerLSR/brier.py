@@ -1,14 +1,12 @@
 from lifelines import KaplanMeierFitter
 import numpy as np
-
-# JM Normalize 
+ 
 def get_integrated(x, times):
     return np.trapz(x,times) / (max(times)-min(times))
 
-# IPCW brier JM: The Brier score is a strictly proper scoring rule that measures the accuracy of probabilistic predictions.
-# Problem mit normalen Brier Score ist dass manche zensiert sind, da muss man anpassen
+# IPCW brier JM: the Brier score is a strictly proper scoring rule that measures the accuracy of probabilistic predictions.
 def brier(preds,events,times,train_e, train_t,LT,pred_times):
-    kmf_c = KaplanMeierFitter() # JM Ist ein Schätzer für die Zensierungsverteilung "dient zum Schätzen der Wahrscheinlichkeit, dass bei einem Versuchsobjekt ein bestimmtes Ereignis innerhalb eines Zeitintervalls nicht eintritt"
+    kmf_c = KaplanMeierFitter()
     # not e to fit for censoring!
     kmf_c.fit(train_t,~train_e)
     batch_size,length = len(events),len(pred_times)
