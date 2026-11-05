@@ -1,7 +1,6 @@
 import torch
 import numpy as np
 
-# JM Wandelt einen Pandas Df in eine Liste um.
 def get_tensors_instance(df, long=["Y1","Y2","Y3","Y4","Y5"],base=["X1","X2","X3"], obstime = "obstime",device='cpu'):
 
     df.loc[:,"id_new"] = df.groupby(by="id").grouper.group_info[0]
@@ -35,7 +34,7 @@ def get_tensors(df, long=["Y1","Y2","Y3","Y4","Y5"], base=["X1","X2","X3"], obst
     I = len(np.unique(df.loc[:,"id"]))
     max_len = np.max(df.loc[:,"visit"]) + 1
 
-    # JM Padding alles erstmal mit 0en voll machen
+    # JM fist we add padding
     x_base = torch.zeros(I, max_len, len(base),device=device)
     x_long = torch.zeros(I, max_len, len(long),device=device)
     mask = torch.zeros((I, max_len), dtype=torch.bool,device=device)
@@ -56,12 +55,12 @@ def get_tensors(df, long=["Y1","Y2","Y3","Y4","Y5"], base=["X1","X2","X3"], obst
 
 
 
-    # JM Für jeden visit jj von Patient i werden Daten eingetragen und Masken entsprechend auf 1 gesetzt
+    # JM filling the masks
     for index, row in df.iterrows():
         ii = int(row.loc["id_new"])
         jj = int(row.loc["visit"])
 
-        x_base[ii,jj,:] = torch.tensor(row.loc[base],device=device) # JM Base f+r Baseline Kovariablen, also in dem Fall I Patienten, max_len die maximalen visiots und dann noch bspw. 3 Baseline Kovariablen
+        x_base[ii,jj,:] = torch.tensor(row.loc[base],device=device) 
         x_long[ii,jj,:] = torch.tensor(row.loc[long],device=device)
         mask[ii,jj] = 1
         long_mask[ii,jj] = 1
@@ -73,10 +72,10 @@ def get_tensors(df, long=["Y1","Y2","Y3","Y4","Y5"], base=["X1","X2","X3"], obst
             long_mask[ii,jj+1] = 0 # No longitudinal Likelihood for the death time
 
         if (jj+1) == row.loc["num_visit"]:
-            full_mask[ii,jj+1] = 1 # JM Egal wie die Full mask wird auf 1 gesetzt
+            full_mask[ii,jj+1] = 1 
 
     
-    e = torch.tensor(df.loc[df["visit"]==0,"event"].values,device=device,dtype=torch.bool).squeeze() # JM event und time ist ja für alle Einträge gleich
+    e = torch.tensor(df.loc[df["visit"]==0,"event"].values,device=device,dtype=torch.bool).squeeze()
     t = torch.tensor(df.loc[df["visit"]==0,"time"].values,dtype=torch.float32,device=device).squeeze()
     
     total_time = torch.cat([obs_time,t.unsqueeze(-1).reshape(obs_time.shape[0],-1)],dim=-1)
@@ -88,8 +87,7 @@ def get_tensors(df, long=["Y1","Y2","Y3","Y4","Y5"], base=["X1","X2","X3"], obst
     return batch
 
 
-# same as above, just with additional ikelihood info for evaluation (JM nur visit_event_ll etc. sind noch dazu gekommen)
-# JM Wird für die Evaluation gebraucht
+# same as above, just with additional ikelihood info for evaluation
 def get_tensors_likelihood(df, long=["Y1","Y2","Y3","Y4","Y5"], base=["X1","X2","X3"], obstime = "obstime",device='cpu',eval_mode=False):
 
     df.loc[:,"id_new"] = df.groupby(by="id").grouper.group_info[0]
@@ -165,9 +163,9 @@ def init_weights(m):
         torch.nn.init.xavier_uniform_(m.weight)
 
 
-# JM Creates an attention mask für the encode decoder transition (Aus den visits werden dann die Masken gemacht auch für die long. Variablen 1 visit heißt ja 3 long V.)
-# JM src_period: How many Tokens on the Encoder side for one time per visit? like longidutionale variables
-# JM trg_period: How many Tokens for the target (mostly just one right?)
+# JM creates an attention mask für the encode decoder transition 
+# JM src_period: How many Tokens on the Encoder side
+# JM trg_period: How many Tokens for the target
 def enc_dec_mask(batch_mask,src_period,trg_period):
     device = batch_mask.device
     mask_clone = batch_mask.clone().cpu()
@@ -186,15 +184,15 @@ def enc_dec_mask(batch_mask,src_period,trg_period):
     mask = np.zeros([trg_combined,src_combined]).astype('uint8')
     
     for row_index, row in enumerate(mask):
-        ind = (row_index // trg_period) * src_period # JM My fix for overflow bug impacts masks
-        # ind = (np.floor(row_index/trg_period).astype('uint8'))*src_period # JM Again a bug...
+        ind = (row_index // trg_period) * src_period # JM my fix for overflow bug impacts masks
+        # ind = (np.floor(row_index/trg_period).astype('uint8'))*src_period # JM again a bug...
         row[0:ind+src_period] = 1
     mask = mask.reshape(1,trg_combined,src_combined)==1
     stacked_mask = stacked_mask & mask
 
     return stacked_mask.to(device=device)
 
-# JM Methode zum erstellen einer Maske, welche kontrolliert was die Tokens sehen dürfen
+# JM method for creating the mask
 def get_mask(pad = None, future = True, window = None,period = None):
     device = pad.device
     pad_clone = pad.clone().cpu()
@@ -208,7 +206,7 @@ def get_mask(pad = None, future = True, window = None,period = None):
         if period is not None:
             periodic_mask = np.zeros((size,size)).astype('uint8')
             for row_index, row in enumerate(periodic_mask):
-                # JM Ersetzen des unteren. Da kommt Overflow zustande und das müsste die Maske dann kaputt machen. Ich bin mir aber nicht sicher ob die mit dem "Overflow" spielen.
+                # JM overflow bug fix
                 ind = (row_index // period - 1) * period
                 #ind = (np.floor(row_index/period).astype('uint8')-1)*period # Das müsste Fehlerhaft sein
                 # JM End
@@ -219,7 +217,6 @@ def get_mask(pad = None, future = True, window = None,period = None):
     return mask.to(device=device)
 
 
-# JM Learnrate Schedular, adapts learn rate
 class NoamOpt:
     "Optim wrapper that implements rate."
     def __init__(self, optimizer, model_size, warmup, factor):
