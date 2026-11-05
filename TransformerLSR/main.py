@@ -22,7 +22,7 @@ pd.options.mode.chained_assignment = None
 # JM debugg for in place changes
 torch.autograd.set_detect_anomaly(True)
 
-# JM Ignore future warnings for better debugging
+# JM ignore future warnings for better debugging
 import warnings
 warnings.filterwarnings("ignore", category=FutureWarning)
 
@@ -134,7 +134,7 @@ def main(args=None):
     vali_data = data[data["id"].isin(vali_id)]
     test_data = data[data["id"].isin(test_id)]
 
-    # JM Remembers NaN-positions, fills it temporarily for minmax_scaler 
+    # JM remembers NaN-positions, fills it temporarily for minmax_scaler 
     nan_mask_train = train_data[Y_str_list].isna()
     nan_mask_vali = vali_data[Y_str_list].isna()
     nan_mask_test = test_data[Y_str_list].isna()
@@ -152,7 +152,7 @@ def main(args=None):
     test_data.loc[:,Y_str_list] = test_data.loc[:,Y_str_list].mask(nan_mask_test, float('nan'))
     # JM END
     
-    # JM Old minmax_fitter
+    # JM old minmax_fitter
     #train_data.loc[:,Y_str_list] = minmax_scaler.fit_transform(train_data.loc[:,Y_str_list])
     #vali_data.loc[:,Y_str_list] = minmax_scaler.transform(vali_data.loc[:,Y_str_list])
     #test_data.loc[:,Y_str_list] = minmax_scaler.transform(test_data.loc[:,Y_str_list])
