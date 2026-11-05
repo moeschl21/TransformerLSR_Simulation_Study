@@ -18,10 +18,7 @@ dat <- dat %>%
   ungroup()
 
 
-# ------------------------------------------------------------
 # Y1: Simple vs. + Y3_previous
-# ------------------------------------------------------------
-
 # Same observations for both models
 dat_Y1 <- dat %>%
   filter(
@@ -45,10 +42,7 @@ print(VarCorr(fit_Y1_simple))
 print(VarCorr(fit_Y1_extended))
 
 
-# ------------------------------------------------------------
 # Y2: Simple vs. + Y1
-# ------------------------------------------------------------
-
 # Same observations for both models
 dat_Y2 <- dat %>%
   filter(
@@ -72,10 +66,7 @@ print(VarCorr(fit_Y2_simple))
 print(VarCorr(fit_Y2_extended))
 
 
-# ------------------------------------------------------------
 # Y3: Simple vs. + Y2
-# ------------------------------------------------------------
-
 # Same observations for both models
 dat_Y3 <- dat %>%
   filter(
