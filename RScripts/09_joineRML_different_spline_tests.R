@@ -16,11 +16,9 @@ files <- file.path(
 
 
 # Survival model
-
 formSurv <- Surv(time, event) ~ X1 + X2 + X3
 
 # Random-effects structure
-
 formLongRandom <- list(
   "Y1" = ~ obstime | id,
   "Y2" = ~ obstime | id,
@@ -29,7 +27,6 @@ formLongRandom <- list(
 
 
 # Fixed effects: linear time effect
-
 formLongFixed_linear <- list(
   "Y1" = Y1 ~ obstime + X1 + X2 + X3,
   "Y2" = Y2 ~ obstime + X1 + X2 + X3,
@@ -38,7 +35,6 @@ formLongFixed_linear <- list(
 
 
 # Fixed effects: natural cubic spline df = 2
-
 formLongFixed_df2 <- list(
   "Y1" = Y1 ~ ns(obstime, df = 2) + X1 + X2 + X3,
   "Y2" = Y2 ~ ns(obstime, df = 2) + X1 + X2 + X3,
@@ -47,7 +43,6 @@ formLongFixed_df2 <- list(
 
 
 # Fixed effects: natural cubic spline df = 3
-
 formLongFixed_df3 <- list(
   "Y1" = Y1 ~ ns(obstime, df = 3) + X1 + X2 + X3,
   "Y2" = Y2 ~ ns(obstime, df = 3) + X1 + X2 + X3,
@@ -56,7 +51,6 @@ formLongFixed_df3 <- list(
 
 
 # Storage
-
 results <- list()
 
 fits_linear <- list()
@@ -67,7 +61,6 @@ fits_df3 <- list()
 for (seed in 1:5) {
   
   # Load data
-  
   dat <- read.csv(files[seed])
   
   dat <- dat %>%
@@ -80,7 +73,6 @@ for (seed in 1:5) {
   
   
   # Remove missing values separately for each outcome
-  
   dat_Y1 <- dat %>%
     dplyr::filter(!is.na(Y1))
   
@@ -91,9 +83,7 @@ for (seed in 1:5) {
     dplyr::filter(!is.na(Y3))
   
 
-  # Identify subjects with at least one measurement
-
-  
+  # Identify subjects with at least one measurement  
   valid_ids <- Reduce(
     intersect,
     list(
@@ -106,7 +96,6 @@ for (seed in 1:5) {
   
   # Subjects excluded because one complete longitudinal
   # outcome is missing
-  
   excluded_ids <- setdiff(
     unique(dat$id),
     valid_ids
@@ -114,7 +103,6 @@ for (seed in 1:5) {
    
   
   # Keep only valid subjects
-
   dat_Y1 <- dat_Y1 %>%
     filter(id %in% valid_ids) %>%
     select(
@@ -150,7 +138,6 @@ for (seed in 1:5) {
   
   
   # Survival data
-  
   surv_dat <- dat %>%
     filter(id %in% valid_ids) %>%
     distinct(id, .keep_all = TRUE) %>%
@@ -165,7 +152,6 @@ for (seed in 1:5) {
   
   
   # Longitudinal data list for mjoint
-
   dat_long <- list(
     "Y1" = dat_Y1,
     "Y2" = dat_Y2,
@@ -174,7 +160,6 @@ for (seed in 1:5) {
   
   
   # Information after missing-value removal
-  
   n_subjects <- length(valid_ids)
   
   cat("\nLongitudinal observations used:\n")
@@ -189,7 +174,6 @@ for (seed in 1:5) {
   
   
   # Fit model: LINEAR
-  
   set.seed(12345)
   
   fit_linear <- mjoint(
@@ -204,8 +188,6 @@ for (seed in 1:5) {
   
   
   # Fit model: SPLINE df = 2
-  
-  
   fit_df2 <- mjoint(
     formLongFixed = formLongFixed_df2,
     formLongRandom = formLongRandom,
@@ -218,8 +200,6 @@ for (seed in 1:5) {
   
   
   # Fit model: SPLINE df = 3
-  
-  
   fit_df3 <- mjoint(
     formLongFixed = formLongFixed_df3,
     formLongRandom = formLongRandom,
@@ -232,14 +212,12 @@ for (seed in 1:5) {
   
   
   # Store fitted models
-  
   fits_linear[[seed]] <- fit_linear
   fits_df2[[seed]] <- fit_df2
   fits_df3[[seed]] <- fit_df3
   
   
   # Extract log-likelihoods
-  
   ll_linear <- logLik(fit_linear)
   ll_df2 <- logLik(fit_df2)
   ll_df3 <- logLik(fit_df3)
@@ -250,21 +228,18 @@ for (seed in 1:5) {
   
   
   # Number of parameters
-  
   k_linear <- attr(ll_linear, "df")
   k_df2 <- attr(ll_df2, "df")
   k_df3 <- attr(ll_df3, "df")
   
   
   # AIC
-  
   AIC_linear <- AIC(fit_linear)
   AIC_df2 <- AIC(fit_df2)
   AIC_df3 <- AIC(fit_df3)
   
   
   # Subject-based BIC
-  
   BIC_linear <- -2 * logLik_linear +
     k_linear * log(n_subjects)
   
@@ -276,7 +251,6 @@ for (seed in 1:5) {
   
   
   # Store results
-  
   results[[seed]] <- data.frame(
     
     seed = seed,
@@ -303,7 +277,6 @@ for (seed in 1:5) {
   
   
   # Print results for current seed
-  
   cat("\n\n")
   cat("============================================================\n")
   cat("RESULT: SEED", seed, "\n")
@@ -346,12 +319,10 @@ for (seed in 1:5) {
 
 
 # Combine all results
-
 results_df <- bind_rows(results)
 
 
 # Final comparison table
-
 comparison <- results_df %>%
   select(
     seed,
@@ -384,7 +355,6 @@ print(comparison)
 
 
 # Compact table
-
 comparison_thesis <- results_df %>%
   transmute(
     Dataset = seed,
@@ -403,7 +373,6 @@ print(comparison_thesis)
 
 
 # Summary: Which specification has lowest AIC / BIC?
-
 best_AIC <- apply(
   results_df[, c("AIC_linear", "AIC_df2", "AIC_df3")],
   1,
