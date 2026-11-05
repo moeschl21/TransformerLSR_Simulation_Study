@@ -10,12 +10,10 @@ import argparse
 import random
 import matplotlib.pyplot as plt
 
-# JM Nochmal dann irgendwann mit dem Paper die ganzen Zahlen vergleichen und mal genau rausfinden was hier genau was ist.
-#
 
-# JM Reads command-line arguments centrally and then return them after parsing.
+# JM reads command-line arguments centrally and then return them after parsing
 def readParser():
-    # JM Adding ArgumentParser-object which sepcifies the arguments, what is allowed and default values
+    # JM adding ArgumentParser-object which sepcifies the arguments, what is allowed and default values
     parser = argparse.ArgumentParser(description='synthetic data generation inspired by the DIVAT dataset')
     parser.add_argument('--seed', type=int, default=123, 
                         help='random seed (default: 123)')
@@ -32,13 +30,13 @@ def readParser():
 def sigmoid_k(theta_alpha,k):
   return(k/(1+np.exp(theta_alpha)))
 
-# JM "Stepfunction"
+# JM "stepfunction"
 def heavi_side(x,val,loc):
     return val * (x > loc) # True = 1
 
-# JM Simulations environment: "Patient" with certain states and parameters
+# JM simulations environment: "patient" with certain states and parameters
 class DIVAT_env:
-    # JM Default parameters/Koefficients like sigma/beta etc.
+    # JM default parameters
     def __init__(self, sigma2_l=0.1**2,sigma2_d=0.3**2,beta_s1=1,
                         beta_s2=0.9,beta_s3=0,beta_alpha=0,h0=1,omega=1.25,mean_y_init=5,timeout=1000):
 
@@ -46,7 +44,7 @@ class DIVAT_env:
         self.steps_elapsed = 0
         self.tox = 0
 
-        # JM Random effects from the normal distribution
+        # JM random effects from the normal distribution
         self.b_il = stats.multivariate_normal.rvs(mean=np.array([0,0,0]),
                                                   cov=np.array([0.2**2,0.07**2,1*10**(-8)]), size=1)
 
@@ -54,17 +52,17 @@ class DIVAT_env:
         self.b_il_tl = stats.multivariate_normal.rvs(mean=np.array([0,0,0]),
                                                   cov=np.array([0.2**2,0.07**2,1*10**(-8)]), size=1)
 
-        # JM Baseline Kovariates
+        # JM baseline Kovariates
         self.DGF = stats.binom.rvs(n=1, p=0.4, size=1)[0]
         self.ageD = stats.norm.rvs(loc=0, scale=1, size=1)[0]
         self.BMI = stats.norm.rvs(loc=0, scale=1, size=1)[0]
         self.sigma2_l = sigma2_l
         self.sigma2_d = sigma2_d
 
-        # JM Initialization of the longitudinal states
+        # JM initialization of the longitudinal states
         self.y = stats.norm.rvs(loc=mean_y_init, scale=np.sqrt(self.sigma2_l), size=1)
         
-        # JM Saving the start values (useful for reset())
+        # JM saving the start values (useful for reset())
         self.mean_y_init = mean_y_init
         self.mean_tl_init = 2.0
         self.Etl = self.mean_tl_init
@@ -87,32 +85,29 @@ class DIVAT_env:
         self.beta_d=np.array([1,0.2,0.15,0.2,0.15])
         self.timeout = timeout
         self.eta_tox=50
-        # JM Censoring rates 
+        # JM censoring rates 
         self.censor_dist = stats.norm(loc=15000, scale=100)
         self.censortime = self.censor_dist.rvs(size=1)[0]
-        self.max_visit = 1500 # JM WIe weit wird in die Zukunft nach den nächsten visit geschaut
+        self.max_visit = 1500
         
         # gamma intensity parameters
         self.nu = np.exp(2.5)
         self.kappa = np.exp(1.5)+1
         self.mu = -4.8
 
-
-
-    # JM Die Funktion rechnet aus wie viel Restwirkung/belastung des Medikaments noch im System sind
-    # JM t_upper neuer Zeitpunkt, t_lower alter Zeitpunkt, di Dosis
+    # JM t_upper new time point, t_lower old timepoint
     def toxicity(self, t_upper, t_lower, di):
         ti = t_upper
         t_r = t_lower
-        tox = self.tox*np.exp(-(ti-t_r)/self.eta_tox) # JM Berechnet die Toxizität aus der bisherigen gespeicherten (self.tox und dem rest)
+        tox = self.tox*np.exp(-(ti-t_r)/self.eta_tox)
         weight=(1-np.exp(-(ti-t_r)/self.eta_tox))
-        tox=tox+di*weight # JM Vergangene tox nimmt ab und der rest nimmt dann zu
+        tox=tox+di*weight
         return tox
     
-    # JM Berechnet Hazard Rate (h(t)) zum Zeitpunkt t_upper in Abhänigkeit verschiedener Parameter 
+    # JM Calcs hazard Rate (h(t))
     def hazard_fun(self,t_upper,di):
         Zvec_tl = np.array([1,di,self.ageD, self.DGF, self.BMI, self.time,self.time**2]) # JM Fixed Parameter
-        Rvec_tl = np.array([1,di,self.time]) # JM Random effects vector
+        Rvec_tl = np.array([1,di,self.time]) # JM random effects vector
         mean_fixed_tl = np.dot(Zvec_tl, self.beta_tl) 
         mean_rand_tl = np.dot(Rvec_tl, self.b_il_tl) # JM self.beta_tl ist der patienten spezifische random effects Anteil
         Etl = mean_rand_tl+mean_fixed_tl
@@ -144,9 +139,8 @@ class DIVAT_env:
 
 
     # soft reset; keep the same personal data
-    # JM Setzt dynamische Zustände der Umgebungen zurück, also Zeit longitudinale Werte, Tox etc.
     def reset(self):
-        self.y = stats.norm.rvs(loc=self.mean_y_init, scale=np.sqrt(self.sigma2_l), size=1) # JM Neue Anfangswerte
+        self.y = stats.norm.rvs(loc=self.mean_y_init, scale=np.sqrt(self.sigma2_l), size=1)
         self.Ey = self.mean_y_init
 
         self.Etl = self.mean_tl_init # JM gleiche wie oben
@@ -158,8 +152,7 @@ class DIVAT_env:
         obs = self.get_obs()
         return obs # JM dort sind dann einfach nochmal die Daten auf und gibt sie weiter
     
-    # hard reset; redraw the random effect and personal data, or load from argument (JM je Patient)
-    # JM die Methode wird benutzt um ein Objekt immer wieder zu resetten und dann so das Datenset aufzubauen, die Daten werden dann nach und nach seperat gespeichert (siehe simulate_traj())
+    # hard reset; redraw the random effect and personal data, or load from argument
     def hard_reset(self,info_i=None):
         if info_i:
             self.b_il = info_i['b_il']
@@ -167,7 +160,7 @@ class DIVAT_env:
             self.ageD = info_i['ageD']
             self.DGF = info_i['DGF']
             self.b_il_tl = info_i['b_il_tl']
-        else: # JM Es wird alles neu gezogen
+        else:
             self.b_il = stats.multivariate_normal.rvs(mean=np.array([0,0,0]),
                                                   cov=np.array([0.2**2,0.07**2,1*10**(-8)]), size=1)
             self.b_il_tl = stats.multivariate_normal.rvs(mean=np.array([0,0,0]),
@@ -175,7 +168,7 @@ class DIVAT_env:
             self.DGF = stats.binom.rvs(n=1, p=0.4, size=1)[0]
             self.ageD = stats.norm.rvs(loc=0, scale=1, size=1)[0]
             self.BMI = stats.norm.rvs(loc=0, scale=1, size=1)[0]
-        obs = self.reset() # JM noch die Anfangsmessungen etc auch zurückzusetzen
+        obs = self.reset()
         self.censortime = self.censor_dist.rvs(size=1)[0]
         return obs
 
@@ -193,7 +186,7 @@ class DIVAT_env:
         obs = [self.tl.item(),self.y.item()]
         return obs
     
-    # "thinning" algorithm for survival  (JM check supplements for thinning algo)
+    # "thinning" algorithm for survival
     # JM accepted means patient died 
     def sample_event(self,di,delta_t):
         t_initial=self.time
@@ -229,9 +222,9 @@ class DIVAT_env:
         return accepted, t_accept
 
    
-    # JM Calculate the integrals of intensity and hazard functions
+    # JM calculate the integrals of intensity and hazard functions
     def cumulative_intensity(self, t_upper,di):
-        I = integrate.quad(self.intensity_fun, self.time, t_upper, args=(di) )[0] #JM bei 0 liegt nur der Integralwert, bei [1] der Fehler
+        I = integrate.quad(self.intensity_fun, self.time, t_upper, args=(di) )[0] 
         cumu_prob = 1-np.exp(-I)
         #return(cumu_prob)
         return I
@@ -243,7 +236,7 @@ class DIVAT_env:
 
 
 
-    # JM Berechnet Intensity Rate (lambda(t)) zum Zeitpunkt t_upper in Abhänigkeit verschiedener Parameter 
+    # JM Calcs intensity rate lambda(t)
     def intensity_fun(self,t_upper,di):
         Zvec_tl = np.array([1,di,self.ageD, self.DGF, self.BMI, self.time,self.time**2])
         Rvec_tl = np.array([1,di,self.time])
@@ -273,11 +266,11 @@ class DIVAT_env:
 
         lam = lam_0*np.exp(-(nu_1*Ey_updated+nu_2*di\
                +nu_0)) \
-        *ti**(self.shape-1) # JM anscheinend wie weibull 
+        *ti**(self.shape-1)
         return lam
 
 
-    # "thinning" algorithm for recurrent visits (zeitpunkte) (JM check supplements for thinning algo)
+    # "thinning" algorithm for recurrent visits
     def sample_visit(self,di):
         t_lower = self.time
         t_upper = self.time+self.max_visit
@@ -330,7 +323,7 @@ class DIVAT_env:
         dosage = stats.norm.rvs(loc=dosage_mean, scale=np.sqrt(self.sigma2_d), size=1).item()
         accepted,time = self.sample_visit(dosage)
         if not accepted:
-            time = self.max_visit # JM Kommt aus dem thinning, wenn nicht berechnet, dann maximale Wartezeit
+            time = self.max_visit 
         else:
             time = time - self.time
         inten_next = self.intensity_fun(self.time+time,dosage).item()
@@ -342,13 +335,13 @@ class DIVAT_env:
     # JM updates longitudinal variables for time t_ij
     def update_long(self,di,t_ij,update_obs=False):
         
-        Zvec_tl = np.array([1,di,self.ageD, self.DGF, self.BMI, t_ij,t_ij**2]) # JM Das müsste Tacrolimus sein
+        Zvec_tl = np.array([1,di,self.ageD, self.DGF, self.BMI, t_ij,t_ij**2]) 
         Rvec_tl = np.array([1,di,t_ij])
         mean_fixed_tl = np.dot(Zvec_tl, self.beta_tl)
         mean_rand_tl = np.dot(Rvec_tl, self.b_il_tl)
         self.Etl = mean_rand_tl+mean_fixed_tl
 
-        Zvec = np.array([1,di,self.ageD, self.DGF, self.BMI,self.tl.item(), t_ij,t_ij**2]) # JM Das müsste Kreatinin Y sein
+        Zvec = np.array([1,di,self.ageD, self.DGF, self.BMI,self.tl.item(), t_ij,t_ij**2]) 
         Rvec = np.array([1,di,t_ij])
         mean_fixed = np.dot(Zvec, self.beta_l)
         mean_rand = np.dot(Rvec, self.b_il)
@@ -362,7 +355,7 @@ class DIVAT_env:
             self.y = stats.norm.rvs(loc=self.Ey, scale=np.sqrt(self.sigma2_l), size=1)
 
 
-    # JM Main function for the simulation
+    # JM main function for the simulation
     def step(self, action):
         di = action[0]
         delta_t = action[1]
@@ -375,10 +368,10 @@ class DIVAT_env:
         t_ij = self.time+delta_t
         death = False
         #self.alpha = sigmoid_k(np.dot(self.theta_a,np.array([1,self.y.item()])),self.k)
-        death, T_max = self.sample_event(di,delta_t)    # JM Samples if the patient dies
+        death, T_max = self.sample_event(di,delta_t)    # JM samples if the patient dies
         #survive until t_ij
         if not death:
-            if t_ij >= self.censortime: # JM Integrale werden nur bis zum Zensurzeitpunkt dann berechnet
+            if t_ij >= self.censortime:
                 print("censored")
                 Zeta = self.cumulative_prob(t_upper=self.censortime,t_lower=self.time,di=di)
                 Lambda = self.cumulative_intensity(t_upper=self.censortime,di=di)
@@ -388,7 +381,7 @@ class DIVAT_env:
                 self.tox =  self.toxicity(t_ij, self.time, di)
                 self.time = self.censortime
                 
-            else: # JM nicht Tod, dann geht es normal weiter
+            else:
                 Zeta = self.cumulative_prob(t_upper=t_ij,t_lower=self.time,di=di)
                 Lambda = self.cumulative_intensity(t_upper=t_ij,di=di)
                 done = False
@@ -396,7 +389,7 @@ class DIVAT_env:
                 self.update_long(di,t_ij,update_obs=True)
                 self.tox =  self.toxicity(t_ij, self.time, di)
                 self.time = t_ij
-        else: # JM Integrale nur bis zum Todeszeitpunkt
+        else:
             Zeta = self.cumulative_prob(t_upper=T_max,t_lower=self.time,di=di)
             Lambda = self.cumulative_intensity(t_upper=T_max,di=di)
             done = True
@@ -421,8 +414,8 @@ def simulate_traj(env):
     _ = env.hard_reset()
     data_info = env.get_data_i()
     death,done = False,False
-    Y1,Y2,A = [],[],[] # JM Tacrolimus, Kreatinin und Dosis
-    obstime,true_inten = [],[] # JM No times set yet
+    Y1,Y2,A = [],[],[]
+    obstime,true_inten = [],[] 
     true_surv,Lam_vec,Zeta_vec = [],[],[]
     tox = []
     num_visit = 0
@@ -457,14 +450,13 @@ def simulate_traj(env):
           
     else:
         last_haz = 0
-    # JM ll steht für log likelihood und bspw. surv_non_ll für den nicht Event teil der Survival log likelihood
     surv_ll = last_haz
     surv_non_ll = Zeta_sum
 
-    event_ll = np.sum(np.log(true_inten).reshape(-1)[:-1]).item() # JM es wird die Intensität für den "nächsten besuch also + 1 berechnet, dieser ist natürlich aber kein Echter besuch wenn Patient stirbt oder den letzten Besuch nicht machen kann
+    event_ll = np.sum(np.log(true_inten).reshape(-1)[:-1]).item()
     event_non_ll = Lam_sum
     
-    # JM Saving everything
+    # JM saving everything
     out_dict = {}
     out_dict["Y1"],out_dict["Y2"],out_dict["A"] = Y1,Y2,A
     out_dict["time"],out_dict["obstime"],out_dict["event"] = true_time,obstime,death
@@ -483,9 +475,6 @@ def simulate_traj(env):
 
 
 
-
-
-# JM
 def main(args=None):
     if args is None:
         args = readParser()
@@ -494,14 +483,14 @@ def main(args=None):
     np.random.seed(seednum)
 
 
-    d_long = 3 # JM Count of longitudinal variables
+    d_long = 3 # JM count of longitudinal variables
 
     save_path = 'data/'+args.save +'_'+str(args.num_traj)+'_visit_'+str(args.timeout)+'_long_'+str(d_long)+'_seed_'+str(args.seed)+'.pkl'
     patient_info_path = 'data/'+args.save +'_'+str(args.num_traj)+'_visit_'+str(args.timeout)+'_long_'+str(d_long)+'_seed_'+str(args.seed)+'_patientInfo.pkl'
-    I,J = args.num_traj, args.timeout # JM Number of patients and maximum time
+    I,J = args.num_traj, args.timeout # JM number of patients and maximum time
 
-    # JM Initialize all lists
-    Y1,Y2,A,X1,X2,X3 = [],[],[],[],[],[] # JM X's is Baseline
+    # JM initialize all lists
+    Y1,Y2,A,X1,X2,X3 = [],[],[],[],[],[]
     time,obstime,event,true_prob,num_visit,true_inten = [],[],[],[],[],[]
     true_surv,Lam,Zeta = [],[],[]
     last_obs,last_treat = [],[]
@@ -519,7 +508,7 @@ def main(args=None):
     dt_vec  = []
     patient_info = []
     length_checker = False
-    # JM For every patient we are doing a trajectory, alles wird in einem Array, Besuchsweise reingepackt
+    # JM for every patient we are doing a trajectory, alles wird in einem Array, Besuchsweise reingepackt
     for i in range(I):
         while not length_checker:
             result = simulate_traj(env) # Simulation 
@@ -564,7 +553,6 @@ def main(args=None):
     event_time = np.array(event_time).reshape(-1)
     cens_time = np.array(cens_time).reshape(-1)
     
-    # JM wenn angegeben, dann kann man hier ein Histogramm plotten lassen
     if args.plot:
         plt.hist(death_time)
         plt.savefig("plots/death_time_hist.png")
@@ -581,7 +569,6 @@ def main(args=None):
         plt.savefig("plots/cens_hist.png")
         plt.close()
 
-    # JM Formatierung in die richtigen Datenformate
     #Y1,Y2,Y3,Y4 = np.array(Y1,dtype=np.float64),np.array(Y2,dtype=np.float64),np.array(Y3,dtype=np.float64),np.array(Y4,dtype=np.float64)
     Y1,Y2,A = np.array(Y1,dtype=np.float64),np.array(Y2,dtype=np.float64),np.array(A,dtype=np.float64)
     X1,X2,X3 = np.array(X1).astype(np.float64), np.array(X2).astype(np.float64),np.array(X3).astype(np.float64)
@@ -599,7 +586,6 @@ def main(args=None):
                                 np.array(event_ll).astype(np.float64),np.array(event_non_ll).astype(np.float64)
     tox = np.array(tox,dtype=np.float64)
 
-    # JM Prints Statistics
     print(f"death rate: {death_count/args.num_traj}")
     
     death_time = np.sum(death_time)/death_count
@@ -632,7 +618,7 @@ def main(args=None):
     dag_mat = np.array([[0,0,0],[1,0,0],[1,1,0]])
     dag_mat = dag_mat[:d_long,:d_long]
 
-    # JM DAG = Directed Acyclic Graph Gibt die Abhänigkeiten der Variablen an also Y1 beinflusst Y2 und Y3 und Y2 beinfluss Y3 
+    # JM DAG order
     dag_mat = dag_mat.transpose()
     dag_info={}
     dag_info["dag"]= dag_mat
@@ -644,7 +630,7 @@ def main(args=None):
     
     dag_info["order"] = dag_order
 
-    # JM Speichert DAG Info und Patientinfos nochmal
+    # JM save dag info
     info_path = 'data/'+args.save +'_'+str(args.num_traj)+'_visit_'+str(args.timeout)+'_long_'+str(d_long)+'_info.pkl'
     with open(info_path, 'wb') as f:
         pickle.dump(dag_info,f)
