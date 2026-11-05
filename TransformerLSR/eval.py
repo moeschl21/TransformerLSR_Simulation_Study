@@ -19,13 +19,12 @@ import pandas as pd
 from sklearn.preprocessing import MinMaxScaler
 pd.options.mode.chained_assignment = None 
 
-# JM Ignore future warnings for better debugging
+# JM ignore future warnings for better debugging
 import warnings
 warnings.filterwarnings("ignore", category=FutureWarning)
 
 # computes the sum of square errors for event likelihood
-# JM Lam und Zeta ist die Integralapproximation pro Intervall
-# JM Name irrefürhend hier wird nur squared Error berechnet nicht MSE!
+# JM they named it wrong here keep that in mind (not MSE actually)
 def MSE_likelihood(visit_inten,Lam,surv_inten,Zeta,batch):
     long_mask = batch["longmask"]
     batch_mask = batch["mask"]
@@ -48,7 +47,7 @@ def MSE_likelihood(visit_inten,Lam,surv_inten,Zeta,batch):
     surv_se_out = surv_se.cpu().numpy()
     return visit_se_out,surv_se_out # Sum of SE per Batch
 
-# JM Fix DeprecationWarning np.trapz to np.trapezoid
+# JM fix DeprecationWarning np.trapz to np.trapezoid
 def get_integrated(x, times):
     return np.trapezoid(x,times) / (max(times)-min(times))
 
@@ -60,7 +59,7 @@ def main(args=None):
     parser.add_argument("--num_enc_layer", default=4, type=int)  
     parser.add_argument("--num_dec_layer", default=4, type=int)   
     parser.add_argument("--num_head", default=4, type=int)      
-    parser.add_argument("--model_size", default=32, type=int)    # JM Embedding   
+    parser.add_argument("--model_size", default=32, type=int)    # JM embedding   
     parser.add_argument('--suffix', type=str, default='eval')
     parser.add_argument('--model', type=str, default='LSR')
     parser.add_argument("--d_long", default=3, type=int) 
@@ -69,23 +68,23 @@ def main(args=None):
     parser.add_argument("--Y1_missing", default=0, type=float)
     parser.add_argument("--Y2_missing", default=0, type=float)
     parser.add_argument("--Y3_missing", default=0, type=float)
-    parser.add_argument("--inten_weight", default=0.01, type=float) # JM Loss weights
+    parser.add_argument("--inten_weight", default=0.01, type=float) # JM loss weights
     parser.add_argument("--surv_weight", default=0.1, type=float)
     parser.add_argument("--lr", default=0.0003, type=float) # learning rate
     args = parser.parse_args()
 
 
     
-    # make logger here JM Eig wie print
+    # make logger here
     logger = logging.getLogger()
     logger.setLevel(logging.INFO)
     formatter = logging.Formatter(fmt="[ %(asctime)s ] %(message)s",
-                                datefmt="%a %b %d %H:%M:%S %Y") # JM Thats how the print will look like then
+                                datefmt="%a %b %d %H:%M:%S %Y")
     sHandler = logging.StreamHandler()
     sHandler.setFormatter(formatter)
     logger.addHandler(sHandler)
     work_dir = os.path.join('./work_dir',
-                                time.strftime("%Y-%m-%d", time.localtime())) # JM Ordner für die loggs
+                                time.strftime("%Y-%m-%d", time.localtime()))
     if not os.path.exists(work_dir):
         os.makedirs(work_dir, exist_ok=True)
     time_prefix = time.strftime("%H:%M:%S", time.localtime())
@@ -107,7 +106,7 @@ def main(args=None):
     if not os.path.exists("./models"):
         os.makedirs("./models")
 
-    # JM Liste der Long Variablen
+    # JM lits of long variables
     Y_str_list = []
     for i in range(args.d_long):
         Y_str = "Y"+str(i+1)
@@ -115,11 +114,11 @@ def main(args=None):
     
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-    dag_info_path = f'data/{args.data}_info.pkl' # JM Wird in data_simulation erstellt
+    dag_info_path = f'data/{args.data}_info.pkl' 
     with open(dag_info_path, 'rb') as f:
         dag_info = pickle.load(f)
     
-    # JM Hier landen die Results
+    # JM results all here
     d_long = args.d_long
     long_result = {}
     event_ll_result={}
@@ -129,11 +128,11 @@ def main(args=None):
     event_ll_result["surv_ll_mse"] = []
     #surv_result = {}
 
-    pred_window_length = 6 # JM Anzahl der zuk. Zeitpunkte an denen Survival bewertet wird?
+    pred_window_length = 6 
     
     
     dt_result = {}
-    dt_result["time_err"] = [] # JM Fehler für Visit Zeiten
+    dt_result["time_err"] = []
 
     seed = args.seed
     seednum = seed
@@ -145,9 +144,9 @@ def main(args=None):
     dataset_path = f'data/{args.data}_seed_{seed}.pkl' 
 
     data_all = pd.read_pickle(dataset_path) 
-    I = data_all["id"].values[-1]+1 # JM Maximale Patienten Anzahl einfach
+    I = data_all["id"].values[-1]+1 
 
-    # JM Logger Print
+    # JM logger Print
     logger.info('=' * 50)
     logger.info(f'Starting evaluation for dataset: {args.data}')
     logger.info(f'{args.num_head} heads, {args.num_enc_layer} enc layers,{args.num_dec_layer} dec layers, {args.model_size} model dimension')
@@ -157,8 +156,7 @@ def main(args=None):
 
     data = data_all[data_all.obstime <= data_all.time]
 
-    # JM Aufteilen der Daten
-    random_id = range(I) #np.random.permutation(range(I)) # JM Für reale Daten müsste man nochmal shuffeln 
+    random_id = range(I) #np.random.permutation(range(I))
     train_id = random_id[0:int(0.6*I)]
     vali_id = random_id[int(0.6*I):int(0.8*I)]
     test_id = random_id[int(0.8*I):I]
@@ -170,26 +168,27 @@ def main(args=None):
     # Scale data using Min-Max Scaler
     minmax_scaler = MinMaxScaler(feature_range=(-1,1))
 
-    train_data.loc[:,Y_str_list] = minmax_scaler.fit_transform(train_data.loc[:,Y_str_list]) # JM NUR auf die Trainingsdaten gefitted
+    train_data.loc[:,Y_str_list] = minmax_scaler.fit_transform(train_data.loc[:,Y_str_list])
     vali_data.loc[:,Y_str_list] = minmax_scaler.transform(vali_data.loc[:,Y_str_list])
     test_data.loc[:,Y_str_list] = minmax_scaler.transform(test_data.loc[:,Y_str_list])
-
-    # JM ACHTUNG hier kann es zum Fehler kommen LT und pred_times werden nicht auf derselben Zeitbasis berechnet.
-    # Dadurch kann es passieren, dass pred_times[0] < LT gilt und man evtl. dann Surv-WKT größer 1 bekommt! 
-    # Weil dann das Integral dann Grenzen hat die das Vorzeichen drehen (gerade beim ersten Wert fällt das auf)
     
-    #LT = np.quantile(train_data['time'], [0.1] )[0] # JM Landmark time
-    # JM Zeitpunkte für die Surv Evaluation zwischen dem 10% und dem 90% Quantil (durch linspace)
-    #pred_times = np.quantile(train_data['time'].unique(), np.linspace(0.1,0.9,pred_window_length+1))[1:]
+    # JM WARNING: An error may occur here because LT and pred_times are not calculated on the same time scale.
+    # As a result, pred_times[0] may be smaller than LT, potentially leading to survival probabilities greater than 1!
+    # This happens because the integration bounds are reversed, changing the sign of the integral
+    # (which is particularly noticeable for the first value).
+    
+    # LT = np.quantile(train_data['time'], [0.1])[0]  # JM Landmark time
+    # JM Time points for survival evaluation between the 10th and 90th percentiles (using linspace)
+    # pred_times = np.quantile(train_data['time'].unique(), np.linspace(0.1, 0.9, pred_window_length + 1))[1:]
 
     #### Bug fix for LT time and pred times to be on the same scale
-    # JM Survival-Zeit pro Patient nur einmal verwenden
+    # JM survival-time per patient only used ones
     train_surv_times = train_data.drop_duplicates(subset="id")["time"]
 
-    # JM Landmark time = 10%-Quantil der Survival-Zeiten im Training
+    # JM landmark time = 10%-quantile
     LT = np.quantile(train_surv_times, 0.1)
 
-    # JM Evaluationszeitpunkte zwischen 10%- und 90%-Quantil
+    # JM times for prediction
     pred_times = np.quantile(
         train_surv_times,
         np.linspace(0.1, 0.9, pred_window_length + 1)
@@ -204,14 +203,14 @@ def main(args=None):
     print("pred_times[0] - LT:", pred_times[0] - LT)
     # JM DEBUG
 
-    # use all data for accurate censoring distribution JM Es werden alle Daten benutzt um die Zensierungsverteilung zu bekommen
+    # use all data for accurate censoring distribution
     #train_batch = get_tensors(data.copy(),long=Y_str_list)
-    # JM Bug fix only use train data! 
+    # JM bug fix only use train data! 
     train_batch = get_tensors(train_data.copy(),long=Y_str_list)
-    train_e,train_t = train_batch["e"].numpy(), train_batch["t"].numpy() # JM train_e ist ob das Event stattgefunden hat und train_t ist dann die Event/Censoring Zeit
+    train_e,train_t = train_batch["e"].numpy(), train_batch["t"].numpy()
 
 
-    kmf_c = KaplanMeierFitter() # JM Schätzt wie wahrscheinlich es ist bis zu bestimmen Zeitpunkt nicht zensiert zu sein
+    kmf_c = KaplanMeierFitter()
     # not e to fit for censoring!
     kmf_c.fit(train_t,~train_e)
 
@@ -228,11 +227,10 @@ def main(args=None):
     Y3_nan_inds = np.random.choice(test_data.index,size = int(args.Y3_missing*len(test_data)),replace=False)
 
 
-    # JM Create Model (läd das Modell unten aus main.py)
+    # JM create Model (läd das Modell unten aus main.py)
     model = TransformerLSR(d_long=args.d_long,d_base=3,dag_info=dag_info, d_model=args.model_size, nhead=args.num_head,
                 num_encoder_layers=args.num_enc_layer,num_decoder_layers=args.num_dec_layer,device=device)
     
-    # JM Wenn wir mit Missing machen, dann werden jetzt die NaN werte gesetzt
     if args.model == "LSR_missing":
         test_data["Y1"][Y1_nan_inds] = float('nan') 
         test_data["Y2"][Y2_nan_inds] = float('nan') 
@@ -245,21 +243,18 @@ def main(args=None):
     # Only keep longitudinal observations <= landmark time
     tmp_data = tmp_data.loc[tmp_data["obstime"]<=LT,:]
 
-    # JM Die ID's die dann übrig bleiben
     surv_id = tmp_data["id"].unique()
 
     tmp_batch = get_tensors(tmp_data.copy(),long=Y_str_list)
     
     model.to(device=device)
 
-    # JM Läd die gepeicherten Gewichte
     model.load_state_dict(torch.load(model_save_path, map_location=device))
     batch_size = args.batch_size
     
-    model.eval() # JM Set the model in Evalution Mode (bspw. Dropout aus)
+    model.eval() 
 
     # long prediction
-    # JM Beinhaltet die Fehler
     num_tokens = 0
     temp_result = {}
     for i in range(d_long):
@@ -271,7 +266,7 @@ def main(args=None):
     temp_result["visit_ll_err"] = 0
     temp_result["visit_ll_tokens"] = 0
     
-    ## JM Beginn Speicher der visit_inten (erste Patient im Batch) fürs plotten
+    ## JM Begin Save our results
     temp_result["visit_log_inten_list"] = []
     temp_result["visit_log_inten_truth"] = []
     temp_result["visit_times"] = []
@@ -293,7 +288,6 @@ def main(args=None):
     temp_result["long_nan_mask"] = []
     ## JM Ende
 
-    # JM Schleife für die Brier Scores
     for i in range(pred_window_length):
         temp_result["brier"+"score"+str(i+1)] = 0
     temp_result["ibs"] = 0 # Integrated Brier Score
@@ -305,19 +299,18 @@ def main(args=None):
         batch_data = test_data[test_data["id"].isin(indices)]
         batch  = get_tensors(batch_data.copy(),long=Y_str_list,device=device)
 
-        # JM Ist nur schneller (berechnet die Grads nicht)
         with torch.no_grad():
             long_preds = model.predict_next_long_treat(batch)
         
         mask = batch["mask"][:,1:]
-        long = batch["long"][:,1:] # JM long. Messwerte (aber noch runterskaliert)
+        long = batch["long"][:,1:] 
         long_missing = batch["long"][:,1:]
         _batch_size,long_dim,length = long.shape[0],long.shape[-1],long.shape[1]
         nan_mask = torch.isnan(long_missing)
         y_target = torch.clone(long)
-        target_mask  = mask.unsqueeze(-1).repeat(1,1,long_dim) # JM Maske auf die richtige Form bringen
+        target_mask  = mask.unsqueeze(-1).repeat(1,1,long_dim)
         reverseNan_mask =  ~nan_mask
-        combined_mask = reverseNan_mask & target_mask # JM Echter visit und kein NaN // Die Maske ist nur noch fürn Fehler dann da
+        combined_mask = reverseNan_mask & target_mask 
 
 
         #inverse transform here
@@ -331,14 +324,13 @@ def main(args=None):
         y_target_plot = y_target.copy()
         long_nan_mask = nan_mask.cpu().numpy().copy()
         
-        y_hat[nan_mask_copy] = 0.0 # JM Dort wo NaN oder kein echter Visit ist wollen wir ja keine Fehler messen (wie auch sinnvoll?)
+        y_hat[nan_mask_copy] = 0.0 
         y_target[nan_mask_copy] = 0.0
-        y_hat = minmax_scaler.inverse_transform(y_hat.reshape(_batch_size*length,long_dim)) # JM Auf die Originalskala zurück transformieren
+        y_hat = minmax_scaler.inverse_transform(y_hat.reshape(_batch_size*length,long_dim))
         y_target = minmax_scaler.inverse_transform(y_target.reshape(_batch_size*length,long_dim))
         y_hat = y_hat.reshape(_batch_size,length,long_dim)
         y_target = y_target.reshape(_batch_size,length,long_dim)
 
-        # JM reshape
         y_hat_plot = minmax_scaler.inverse_transform(
             y_hat_plot.reshape(_batch_size*length, long_dim)
         )
@@ -350,18 +342,18 @@ def main(args=None):
         y_hat_plot = y_hat_plot.reshape(_batch_size, length, long_dim)
         y_target_plot = y_target_plot.reshape(_batch_size, length, long_dim)
 
-        for i in range(d_long): # JM Wir behalten nur gültige Werte
+        for i in range(d_long): # JM only valid values
             y_hat_i = y_hat[:,:,i].reshape(-1)[combined_mask[:,:,i].reshape(-1) > 0]
             y_target_i = y_target[:,:,i].reshape(-1)[combined_mask[:,:,i].reshape(-1) > 0]
             temp_result["Y"+str(i+1)+"err"] += np.sum((y_hat_i-y_target_i)**2)
-            temp_result["Y"+str(i+1)+"tokens"] += combined_mask[:,:,i].sum().item() # JM Wie viele Werte wurde dafür verwendet
+            temp_result["Y"+str(i+1)+"tokens"] += combined_mask[:,:,i].sum().item() 
 
         # now visit event comparison with the ground truth:
         batch  = get_tensors_likelihood(batch_data.copy(),long=Y_str_list,device=device)
         with torch.no_grad():
-            _,visit_inten,surv_inten,Lambda,Zeta = model(batch) # JM Berechnet die visit_inten an den Visit Zeitpunkten un die surv_inten am Event
+            _,visit_inten,surv_inten,Lambda,Zeta = model(batch) 
 
-        ## JM Beginn Speicher der visit_inten (erste Patient im Batch) fürs plotten
+        ## JM save first patient info for plotting
         if first_run:
             first_traj_len = torch.sum(batch["mask"][0],dim=-1).cpu().numpy()
             
@@ -394,25 +386,26 @@ def main(args=None):
             )
             
             first_run = False     
-        ## JM Ende
-        
+        ## JM end
+
+        # JM clac errors
         visit_ll_se,surv_ll_se = MSE_likelihood(visit_inten,Lambda,surv_inten,Zeta,batch)
-        temp_result["visit_ll_err"] += visit_ll_se # JM Summiert den Fehler auf
+        temp_result["visit_ll_err"] += visit_ll_se 
         temp_result["surv_ll_err"] += surv_ll_se
         visit_ll_mask = batch["mask"]
-        temp_result["visit_ll_tokens"] += visit_ll_mask.sum().item() # JM Anzahl der visits
+        temp_result["visit_ll_tokens"] += visit_ll_mask.sum().item() 
         # batch size for surv
-        temp_result["surv_ll_tokens"] += visit_ll_mask.shape[0] # Anzahl der Patienten im Batch für RMSE
+        temp_result["surv_ll_tokens"] += visit_ll_mask.shape[0] 
 
     for i in range(d_long):
         temp_result["Y"+str(i+1)+"err"] /= temp_result["Y"+str(i+1)+"tokens"]
-        temp_result["Y"+str(i+1)+"err"] = np.sqrt(temp_result["Y"+str(i+1)+"err"].item()) # JM jetzt RMSE
+        temp_result["Y"+str(i+1)+"err"] = np.sqrt(temp_result["Y"+str(i+1)+"err"].item())
 
 
-    temp_result["visit_ll_err"] /= temp_result["visit_ll_tokens"] # JM Wieder mitteln
-    temp_result["surv_ll_err"] /= temp_result["surv_ll_tokens"] # 
+    temp_result["visit_ll_err"] /= temp_result["visit_ll_tokens"]
+    temp_result["surv_ll_err"] /= temp_result["surv_ll_tokens"]  
 
-    temp_result["visit_ll_err"] = np.sqrt(temp_result["visit_ll_err"].item()) # JM RMSE
+    temp_result["visit_ll_err"] = np.sqrt(temp_result["visit_ll_err"].item())
     temp_result["surv_ll_err"] = np.sqrt(temp_result["surv_ll_err"].item()) 
 
 
@@ -421,7 +414,7 @@ def main(args=None):
     total_pred_plot = []
     
     for batch in range(0, len(surv_id), batch_size):
-        # JM Nur die Patienten die für die Analyse geeignet sind time > LT
+        # JM only patients with time > LT
         indices = surv_id[batch:batch+batch_size] 
         batch_data = tmp_data[tmp_data["id"].isin(indices)]
         batch = get_tensors(batch_data.copy(),long=Y_str_list,device=device,eval_mode=True)
@@ -429,64 +422,63 @@ def main(args=None):
         base_0 = batch["base"][:,0,:].unsqueeze(1)
         _batch_size = base_0.shape[0]        
 
-        ### Wird nicht benutzt?
+        ### JM not used ?
         mask_T = torch.ones((_batch_size,1), dtype=torch.bool,device=device)
         time_extender = torch.ones([_batch_size,1],dtype=torch.float32,device=device)
         long_extender = torch.zeros([_batch_size,1,batch["long"].shape[2]],dtype=torch.float32,device=device)
-        ### Wird nicht benutzt?
+        ### Jm not used?
         
         surv_pred = torch.zeros(_batch_size,0,1,device=device)
 
         start_time = LT
 
-        for pt in pred_times: # JM Berechnet die Integrale immer zwischen den Intervallen
+        for pt in pred_times:
             with torch.no_grad():
-                surv_out = model.predict_surv_marginal(batch,end_time=pt,start_time=start_time) # JM noch keine Surv-Wkt nur das Integral h(t) hier
+                surv_out = model.predict_surv_marginal(batch,end_time=pt,start_time=start_time) 
             
             surv_pred = torch.cat((surv_pred, surv_out.unsqueeze(-1)), dim=1)
             start_time = pt
 
+        # JM surv probability calc
         surv_pred = surv_pred.squeeze().cpu().numpy().reshape(_batch_size,-1)
-        surv_pred = surv_pred.cumsum(axis=1) # JM SUmmieren kommulliert (also immer den wert drauf aber immer noch im Vektor)
-        surv_pred = np.exp(-surv_pred) # JM Survival WKT jetzt
-        total_pred.append(surv_pred) # JM Hier sind jetzt nach und nach aufsummiert die SURV-WKT drin (Integral immer von LT aus und nach und nach mit pt weiter)
+        surv_pred = surv_pred.cumsum(axis=1) 
+        surv_pred = np.exp(-surv_pred) 
+        total_pred.append(surv_pred) 
 
-        # JM Mean survival plot calculations
+        # JM mean survival plot calculations
         surv_pred = torch.zeros(_batch_size,0,1,device=device)
         start_time = LT
         
         for pt in pred_times_plot: 
             with torch.no_grad():
-                surv_out = model.predict_surv_marginal(batch,end_time=pt,start_time=start_time) # JM noch keine Surv-Wkt nur das Integral h(t) hier
+                surv_out = model.predict_surv_marginal(batch,end_time=pt,start_time=start_time)
             
             surv_pred = torch.cat((surv_pred, surv_out.unsqueeze(-1)), dim=1)
             start_time = pt
 
         surv_pred = surv_pred.squeeze().cpu().numpy().reshape(_batch_size,-1)
-        surv_pred = surv_pred.cumsum(axis=1) # JM SUmmieren kommulliert (also immer den wert drauf aber immer noch im Vektor)
-        surv_pred = np.exp(-surv_pred) # JM Survival WKT jetzt
-        total_pred_plot.append(surv_pred) # JM Hier sind jetzt nach und nach aufsummiert die SURV-WKT drin (Integral immer von LT aus und nach und nach mit pt weiter)
-        # JM END
+        surv_pred = surv_pred.cumsum(axis=1) 
+        surv_pred = np.exp(-surv_pred) 
+        total_pred_plot.append(surv_pred) 
 
     total_pred = np.concatenate(total_pred,axis=0)
     total_pred_plot = np.concatenate(total_pred_plot,axis=0)
 
-    # JM Input the metrics to the return list
+    # JM input the metrics to the return list
     mean_surv_plot = total_pred_plot.mean(axis=0)
     temp_result["pred_times_plot"] = pred_times_plot
     temp_result["mean_surv_plot"] = mean_surv_plot
     temp_result["total_pred_plot"] = total_pred_plot
-    # JM Input the metrics to the return list END
+    # JM input the metrics to the return list END
 
-    # JM Brier Score für jede prediction Zeit
+    # JM Brier Score for every prediction time
     bs= brier_fast(total_pred, tmp_batch["e"].numpy().reshape(len(surv_id)), tmp_batch["t"].numpy().reshape(len(surv_id)),
                     kmf_c, LT, pred_times)
 
-    # Durschnitt des Bries Scores über die Zeit (Durchschnittlicher Fehler über den gesamten Vorhersagehorizont)
     ibs = get_integrated(bs,pred_times)
 
 
-    # JM Save everything
+    # JM save everything
     for i in range(len(bs.reshape(-1))):
             temp_result["brier"+"score"+str(i+1)] =bs.reshape(-1)[i]
 
