@@ -12,22 +12,21 @@ def clones(module, N):
     return nn.ModuleList([copy.deepcopy(module) for _ in range(N)])
 
 
-# JM die Maske die die Reihenfolge festlegt und was gesehen werden etc.
-# JM Pad: Tensor-Maske pro Patient und Visit
-# JM Dag: Adjazenz Matrix (welche Variable auf welche Beziehung hat)
-# JM nan_mask: Wo fehlen Werte (pro Variable)
+# JM mask for ordering
+# JM Pad: tensor mask
+# JM Dag: DAG ordering mask
+# JM nan_mask: where are observations missing
 def dag_mask(pad,dag,nan_mask):
     device = pad.device
     dag_length = dag.shape[1]
     batch_size,seq_length = pad.shape[0],pad.shape[1] 
     pad_clone = pad.clone().cpu()
-    # expand the pad mask JM weil ein Besuch nicht ein Token sondern in unserem Fall 3 Token (3 long. Variablen) hier dag_length
+    # expand the pad mask
     pad_vec = []
     for _ in range(dag_length):
         pad_vec.append(pad_clone)
     pad_clone = torch.stack(pad_vec,dim=1).permute(0,2,1).reshape(batch_size,seq_length*dag_length)
 
-    # stack the nan mask JM auch auf Token Ebene bringen wie oben
     nan_mask = torch.stack(nan_mask,dim=1).permute(0,2,1).reshape(batch_size,seq_length*dag_length).cpu()
 
     # size is batch size * seq length
@@ -36,15 +35,15 @@ def dag_mask(pad,dag,nan_mask):
     nan_mask = nan_mask.unsqueeze(-2)
     mask = pad_mask & nan_mask
 
-    future_mask = np.triu(np.ones((1,size,size)), k=1).astype('uint8')==0   # Not allow to see the future JM damit Autoregressiv
+    future_mask = np.triu(np.ones((1,size,size)), k=1).astype('uint8')==0   # Not allow to see the future, autoregressiv prediction
     
     # now process dag mask
     dag_mask = np.copy(dag.transpose())
-    np.fill_diagonal(dag_mask,1) # Diag auf 1 (jede Variable darf sich selbst sehen)
+    np.fill_diagonal(dag_mask,1) 
     dag_mask = torch.from_numpy(dag_mask).to(torch.bool)
     dag_mask = ~dag_mask
     expand_vec = []
-    for _ in range(seq_length): # JM Für jeden Visit sind ja die Abhänigkeiten gleich
+    for _ in range(seq_length):
         expand_vec.append(dag_mask)
     dag_mask = torch.block_diag(*expand_vec)
     dag_mask = ~dag_mask
@@ -54,7 +53,7 @@ def dag_mask(pad,dag,nan_mask):
     return mask.to(device=device)
 
 
-# JM Decoder Maske (ähnlich wie oben nur ohne future mask (brauchen wir ja nicht? decoder soll ja zukunft bestimmen?))
+# JM decoder mask
 def dec_mask(pad,dag):
     device = pad.device
     dag_length = dag.shape[1]
@@ -88,7 +87,6 @@ def inverse_permutation(a):
     return b
 
 
-# JM Achtung teilweise andere Werte im Paper verwendet als hier als default festgelegt
 class TransformerLSR(nn.Module):
     """
     a flexible joint model for longitudinal variables, survival data, and recurrent event data, while allowing causal dependence among longitudinal variables.
@@ -120,24 +118,24 @@ class TransformerLSR(nn.Module):
                  num_decoder_layers = 3,
                  dropout = 0.2,
                  num_exp = 500,
-                 num_sample = 100, # JM Evtl für die Monte-Carlo sachen
+                 num_sample = 100,
                  ffn_dim = 64,
                  device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')):
         super().__init__()
 
         self.d_model = d_model
         # order consistent with *input* (pre-sorted)
-        self.long_embeddings = clones(nn.Linear(1,d_model),d_long) # JM Each long. variable got their embedding
+        self.long_embeddings = clones(nn.Linear(1,d_model),d_long) # JM each long. variable got their embedding
         self.base_embedding = nn.Linear(d_base,d_model)
 
-        # JM Building the Encoder Input ist 3*32 da alle in dim 32 (32 ist default) eingebettet werden also je dim 32: long_i_embedding, base_embedding, temp_embedding)
+        # JM building the encoder input is 3*32 (long_i_embedding, base_embedding, temp_embedding)
         self.encoder_layers = nn.ModuleList([Encoder_Layer(3*d_model,nhead,dropout,ffn_dim=ffn_dim)
                                              for _ in range(num_encoder_layers)])
         # use encoder structure for decoder (JM in decode they implemented the decoder stuff)
         self.decoder_layers = nn.ModuleList([Encoder_Layer(3*d_model,nhead,dropout,ffn_dim=ffn_dim)
                                              for _ in range(num_decoder_layers)])
 
-        # by same convention, let's use pre-sorted indices (Output heads, also Embedding -> wieder zurück)
+        # by same convention, let's use pre-sorted indices (Output heads, also Embedding -> and back)
         self.long_p = clones(nn.Linear(3*d_model,1),d_long)
         self.surv = nn.Linear(3*d_model, 1)
         self.inten = nn.Linear(3*d_model,1)
@@ -146,17 +144,16 @@ class TransformerLSR(nn.Module):
         self.embed_ln_src = nn.LayerNorm(3*d_model) 
         self.embed_ln_trg = nn.LayerNorm(3*d_model)
         # used to handle types of prediction tokens; 0-(d_long-1) is for long, d_long is for visit event, and d_long+1 is for surv event
-        # JM Sagt im Prinzip dem Decoder einfach nur was er Vorherzusagen hat als "Vektor in d_model" 
         self.dict_embedding = nn.Embedding(d_long+2,d_model)
         self.num_exp = num_exp
         self.num_sample = num_sample
         self.device = device
         self.d_long = d_long
-        self.dag = dag_info["dag"] # JM Matrix
-        self.dag_order = dag_info["order"] # JM AUtoregressive Ordnung
+        self.dag = dag_info["dag"] # JM matrix
+        self.dag_order = dag_info["order"] # JM autoregressive ordering
         self.inv_order = inverse_permutation(self.dag_order)
 
-    # JM Sinusoidalen pos Embedding for each visit and each patient ("actual time" aber durch einbeddung beschrieben)
+    # JM sinusoidalen pos embedding for each visit and each patient
     def temporal_embedding(self,batch_size, length, d_model, obs_time):
         """
         Positional Encoding for each visit
@@ -244,22 +241,20 @@ class TransformerLSR(nn.Module):
         return x, attention_mask
     
     # processing for the decoder *for the longitudinal part*
-    # JM trg_long: bereits vorhergesagt, trg_base: Baseline features, pred_time: Zeitpunkte für die vorhergesagt wird
-    # JM long_range: Welche Variable soll vorhergesagt werden
+    # JM trg_long: already predicted, trg_base: baseline features, pred_time: times for prediction
+    # JM long_range: which variable for prediction
     def output_proc(self,trg_long,trg_base,trg_mask,pred_time,long_range):
         batch_size,length = trg_base.shape[0],trg_base.shape[1]
         base_embedding = self.base_embedding(trg_base)
         temp_embedding = self.temporal_embedding(batch_size, length, self.d_model,pred_time)
         
-        # JM Welche Variable soll vorhergesagt werden "Begin of Sequence"
-        # Es wird quasi ein Vektor erzeugt (aus dem Embedding durch das multiplizieren)
-        # welches dem Decoder sagt "Wir wollen XY Vorhersagen" (Er lernt das dann mit diesem Eingabe Vektor dann immer)
+        # JM "Begin of Sequence" with prediction tokens
         bos = torch.ones([batch_size,length],dtype=torch.long,device=self.device) * self.dag_order[long_range-1]
         bos_embeddings = torch.cat([self.dict_embedding(bos),base_embedding,temp_embedding],dim=-1)
         embed_list = []
         #treat is predicted in the same manner as longs
         for i in range(1,long_range):
-            long_i_ind = self.dag_order[i-1] # JM Autoregression beachten
+            long_i_ind = self.dag_order[i-1] # JM autoregression order
             # trg_long is a sorted list of tensors of shape [batch_size,length,1]
             long_i_embedding = self.long_embeddings[long_i_ind](trg_long[i-1])
             long_i_embedding = torch.cat([long_i_embedding,base_embedding,temp_embedding],dim=-1)
@@ -276,13 +271,12 @@ class TransformerLSR(nn.Module):
         return x, attention_mask
 
     # output processing for the two events type
-    # pred type: 1 is visit and 2 is survival JM eigentlich mit strings "visit"
-    # JM Siehe oben sehr ähnlich
+    # pred type: 1 is visit and 2 is survival
     def output_proc_events(self,trg_base,trg_mask,pred_time,pred_type):
         batch_size,length = trg_base.shape[0],trg_base.shape[1]
         base_embedding = self.base_embedding(trg_base)
         temp_embedding = self.temporal_embedding(batch_size, length, self.d_model,pred_time)
-        # JM Bereitet den Token vor, was vorhergesagt werden soll.
+        # JM Prepares token for prediction
         if pred_type == "visit":
             pred_val = self.d_long
         else:
@@ -328,7 +322,7 @@ class TransformerLSR(nn.Module):
         return long_preds,visit_inten,surv_inten,Lambda,Zeta
         #return long_preds, visit_inten, None, Lambda, None
 
-    # JM Berechnet das Integral (Zeta= ∫h(t)dt), aber hier ohne Möglichkeit Predictions für die Survivals in der Zukunft zu machen (nicht wie bei predict_surv_marginal)
+    # JM Calc the integrals (Zeta= ∫h(t)dt)
     def compute_Zeta(self,batch):
         input_long,input_base = batch["long"],batch["base"]
         total_time,total_mask = batch["totaltime"],batch["fullmask"]
@@ -355,7 +349,7 @@ class TransformerLSR(nn.Module):
                                                                             batch_mask[:,:-1],obs_time[:,:-1]
         trg_base,out_mask,pred_time = base[:,1:],batch_mask[:,1:],obs_time[:,1:]
         
-        #proc for encoder; JM Tokenizing
+        #proc for encoder; JM tokenizing
         input_embeddings, src_mask = self.input_proc(input_long,input_base,input_mask,input_time)
         
         #encoding
@@ -369,8 +363,8 @@ class TransformerLSR(nn.Module):
             encDec_mask = enc_dec_mask(input_mask,self.d_long,i)
             dec_out = self.decode(memory,encDec_mask,trg_embeddings,trg_mask)
             x = dec_out.reshape(batch_size,trg_length,i,3*self.d_model).permute(0,2,1,3)
-            long_i_ind = self.dag_order[i-1] # JM Holt den Index der auch der Reihenfolge entspricht vom vorhersagen
-            long_i_pred = self.long_p[long_i_ind](x[:,i-1]) # JM Last layer for prediction, wenn man 2 token reingibt bspe [Y^1, Py2] mit P prediction token, dann bekommt man ja zwei outputs aber man will ja nur den output von Py2 behalten weil man ja das predicten will, also nimmt man das letzte.
+            long_i_ind = self.dag_order[i-1] 
+            long_i_pred = self.long_p[long_i_ind](x[:,i-1]) # JM last layer for prediction (other predictions are not relevant)
             trg_long_list.append(long_i_pred) 
         for i in range(self.d_long):
             long_preds.append(trg_long_list[self.inv_order[i]])
@@ -387,7 +381,7 @@ class TransformerLSR(nn.Module):
     '''
 
 
-    # JM Integral Berechnungen (Approx des Integrals über Zeitintervalle)
+    # JM integral calculation
     def int_extra_times(self, input_memory, base,total_time,total_mask,mode="visit",step=5,last_mode=False):
         input_mask,out_mask = total_mask[:,:-1],total_mask[:,1:]
         num_samples = self.num_sample
@@ -451,7 +445,7 @@ class TransformerLSR(nn.Module):
         long,base,batch_mask = batch["long"],batch["base"],batch["mask"]
         obs_time = batch["obstime"]
 
-        input_long,input_base,input_mask,input_time = long,base,batch_mask,obs_time # JM Hier wird diesmal nichts abgeschnitten
+        input_long,input_base,input_mask,input_time = long,base,batch_mask,obs_time 
         #proc for encoder
         input_embeddings, src_mask = self.input_proc(input_long,input_base,input_mask,input_time)
         #encoding
@@ -469,7 +463,7 @@ class TransformerLSR(nn.Module):
         end_time = torch.ones([batch_size,1], dtype=torch.float32, device=self.device) * end_time
         total_time = torch.cat([start_time,end_time],dim=-1)
 
-        # JM Hazard integral berechnet
+        # JM hazard integral
         Zeta = self.int_extra_times(memory, last_base,total_time,batch_mask,mode="surv",last_mode=True)
 
         return Zeta
@@ -477,7 +471,6 @@ class TransformerLSR(nn.Module):
 
     # assuming all sampled times are in [last_visit, bound) and inputs are not padded
     # used for visit time prediction during evaluation
-    # JM Bekommt Zeiten und berechnet intensitäten an diesen Zeiten
     def intensities_sampled_times(self,memory,base,sampled_times,encDec_mask):
         batch_size,sample_size = sampled_times.shape[0],sampled_times.shape[1]
         bos = torch.ones([batch_size,sample_size],dtype=torch.long,device=self.device) * self.d_long
@@ -500,14 +493,13 @@ class TransformerLSR(nn.Module):
     # predicting time
     # works in instance mode (only one Patient); batch mode is not supported currently, and provides limited computation benefit:
     # the amount of samples needed is batch_size*visit_num*thinningsample_num*MCsample_num, need to break up into minibatches anyway
-    # JM Simuliert mögliche nächste Visit Zeitpunkte (Basically Thinning)
     def draw_next_times(self,input,bound):
         input_long,base,batch_mask,obs_time = input["long"],input["base"],input["mask"],input["obstime"]
         assert input_long.shape[0] == 1, "time prediction currently only supports instance mode"
         over_sample_rate = 5.0
         last_visit_time = obs_time[:,-1].item()
         boundary = last_visit_time + bound
-        # JM Zieht Zeiten aus dem Intervall
+        # JM samples times
         times_for_bound = torch.empty(
             size=[self.num_sample], dtype=torch.float32, device=self.device
         ).uniform_( last_visit_time, boundary)
@@ -517,12 +509,12 @@ class TransformerLSR(nn.Module):
         memory_length = memory_instance.shape[1]
         instance_base = base[0,-1].reshape(1,1,-1)
         extra_base = instance_base.repeat(1,self.num_sample,1)
-        # JM Man darf auf alles schauen
+        # JM able the see everything
         encDec_mask = enc_dec_mask(batch_mask,self.d_long,1)[:,-1].reshape(1,1,memory_length)
         encDec_mask = encDec_mask.repeat(1,self.num_sample,1)
 
         intensities_for_bound = self.intensities_sampled_times(memory_instance,extra_base,times_for_bound.unsqueeze(0),encDec_mask)
-        bounds = intensities_for_bound.max() * over_sample_rate # JM Obere Schranke für Thinning
+        bounds = intensities_for_bound.max() * over_sample_rate # JM upper bound
         sample_rate = bounds
         S = self.num_exp
         rst = torch.empty(
@@ -559,7 +551,7 @@ class TransformerLSR(nn.Module):
         rst[who_not_accept&who_reach_further] = \
             sampled_times[:, -1][who_not_accept&who_reach_further]
 
-        return rst, weights # JM Rst gibt viele nächste Visit Zeitpunkte raus im Eval.py wird dann pred_time berechnet mittels den gewichten also eine art Mittelwert
+        return rst, weights
 
 
 
