@@ -1,6 +1,4 @@
 """
-This code was generated with the help of ChatGPT 5.6 Sol but was checked and validated.
-
 Ground-truth mean survival for TransformerLSR simulation data.
 
 Example (from the Notebook):
