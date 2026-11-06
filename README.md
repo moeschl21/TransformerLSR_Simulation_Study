@@ -10,7 +10,7 @@ The study evaluates the predictive performance of TransformerLSR under limited d
 
 The repository is organized into the following directories:
 
-- `TransformerLSR/` – TransformerLSR implementation based on Zhang et al. (2025), including modifications and bug fixes. Comments made by me are denoted by "JM". 
+- `TransformerLSR/` – TransformerLSR implementation based on Zhang et al. (2025), including modifications and bug fixes. Our comments are denoted by "JM". 
 
 - `R-Scripts/` – R scripts used for analyses, model specification, diagnostics, and selection of the joineRML model configuration.
 
