@@ -26,7 +26,7 @@ Each contains Python notebooks for data generation, TransformerLSR training, and
 
 The TransformerLSR implementation is based on the original code developed by Zhang, Zhao, and Xu (2025).
 
-The original implementation was adapted and extended for the purposes of this simulation study. Modifications include adjustments to the data simulation, model training and evaluation, as well as bug fixes and other implementation improvements.
+The original implementation was adapted and extended for the purposes of this simulation study. Modifications include adjustments to the data simulation, model training, and evaluation, as well as bug fixes and other implementation improvements.
 
 The joineRML analyses were implemented in R using the joineRML package developed by Hickey et al. (2018).
 
